@@ -131,7 +131,7 @@ public abstract class ChunkDataSenderMixin {
     @WrapOperation(
             method = "dropChunk",
             at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/server/network/ServerGamePacketListenerImpl;sendPacket(Lnet/minecraft/network/protocol/Packet;)V"))
+                    target = "Lnet/minecraft/server/network/ServerGamePacketListenerImpl;send(Lnet/minecraft/network/protocol/Packet;)V"))
     private void rtxremix$queueLocalUnload(ServerGamePacketListenerImpl handler, Packet<?> packet, Operation<Void> original,
                                            ServerPlayer player, ChunkPos pos) {
         if (!memoryConnection || !LocalChunkBatchPacing.UNLOAD_ENABLED || !RtxRemixMod.isRtxEnabled()) {

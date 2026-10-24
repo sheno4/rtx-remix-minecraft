@@ -113,10 +113,10 @@ public class SectionBuilderMixin {
         rtxremix$tracyBlockLoop.set(ProfileScope.begin("block loop"));
     }
 
-    // isOpaqueFullCube: capture opacity / face masks / lights / quads
+    // isSolidRender: capture opacity / face masks / lights / quads
     @Redirect(method = "compile",
               at = @At(value = "INVOKE",
-                       target = "Lnet/minecraft/world/level/block/state/BlockState;isOpaqueFullCube(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Z"))
+                       target = "Lnet/minecraft/world/level/block/state/BlockState;isSolidRender(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;)Z"))
     private boolean rtxremix$captureBlock(BlockState state, BlockGetter world, BlockPos pos) {
         boolean opaque = state.isSolidRender(world, pos);
         BlockQuadEmitter emitter = BlockQuadEmitter.current();
@@ -137,7 +137,7 @@ public class SectionBuilderMixin {
     // block invisible makes vanilla skip all of it.
     @Redirect(method = "compile",
               at = @At(value = "INVOKE",
-                       target = "Lnet/minecraft/world/level/block/state/BlockState;getRenderType()Lnet/minecraft/world/level/block/RenderShape;"))
+                       target = "Lnet/minecraft/world/level/block/state/BlockState;getRenderShape()Lnet/minecraft/world/level/block/RenderShape;"))
     private RenderShape rtxremix$renderTypeForVanilla(BlockState state) {
         return rtxremix$capturing()
                 ? RenderShape.INVISIBLE
