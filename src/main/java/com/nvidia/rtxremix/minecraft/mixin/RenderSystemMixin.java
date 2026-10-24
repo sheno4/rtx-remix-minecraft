@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * present, so Vulkan owns the swapchain whenever the renderer is initialized.
  * Before that, and if initialization fails, the GLFW swap runs unchanged.
  */
-@Mixin(RenderSystem.class)
+@Mixin(value = RenderSystem.class, remap = false)
 public abstract class RenderSystemMixin {
 
     @Redirect(

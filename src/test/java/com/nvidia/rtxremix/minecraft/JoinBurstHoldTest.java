@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+
 class JoinBurstHoldTest {
 
     private static final long MS = 1_000_000L;

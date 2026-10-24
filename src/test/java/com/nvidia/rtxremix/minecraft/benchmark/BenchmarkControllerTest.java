@@ -8,6 +8,10 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.nvidia.rtxremix.minecraft.camera.CameraController;
 import com.nvidia.rtxremix.minecraft.profiling.PerformanceTimer;
+import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.gui.screens.LevelLoadingScreen;
+import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.client.gui.screens.ReceivingLevelScreen;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -24,14 +28,14 @@ class BenchmarkControllerTest {
 
     /**
      * Warmup frames must not be counted while a world-load overlay is up; the
-     * screen classes are matched by simple name (obfuscation-mapped at runtime).
+     * screen classes retain their identity across development and release mappings.
      */
     @Test
-    void isWorldLoadScreenNameMatchesLoadingScreensOnly() {
-        assertTrue(BenchmarkController.isWorldLoadScreenName("DownloadingTerrainScreen"));
-        assertTrue(BenchmarkController.isWorldLoadScreenName("LevelLoadingScreen"));
-        assertFalse(BenchmarkController.isWorldLoadScreenName("GameMenuScreen"));
-        assertFalse(BenchmarkController.isWorldLoadScreenName("ChatScreen"));
+    void isWorldLoadScreenTypeMatchesLoadingScreensOnly() {
+        assertTrue(BenchmarkController.isWorldLoadScreenType(ReceivingLevelScreen.class));
+        assertTrue(BenchmarkController.isWorldLoadScreenType(LevelLoadingScreen.class));
+        assertFalse(BenchmarkController.isWorldLoadScreenType(PauseScreen.class));
+        assertFalse(BenchmarkController.isWorldLoadScreenType(ChatScreen.class));
     }
 
     @Test

@@ -4,9 +4,10 @@
 name: build
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, codex/minecraft-26.3]
 
 permissions:
   contents: read
@@ -25,3 +26,13 @@ jobs:
       # The pinned runtime comes from public Packman; no credentials are used.
       - name: Build and test
         run: '& "$env:GITHUB_WORKSPACE\gradlew.bat" build test'
+      - name: Upload build and test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: minecraft-build-${{ github.sha }}
+          path: |
+            build/libs/*.jar
+            build/reports/tests/test/
+            build/test-results/test/
+          if-no-files-found: ignore
