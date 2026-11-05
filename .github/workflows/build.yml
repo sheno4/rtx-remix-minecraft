@@ -22,9 +22,16 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - name: Check out the independently licensed Cloudly source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: sheno4/Caustica
+          ref: fc3ad81ff30aab4b8db182570976b2aa9794ff41
+          path: .cloudly-runtime
+          persist-credentials: false
       # The pinned runtime comes from public Packman; no credentials are used.
       - name: Build and test
-        run: '& "$env:GITHUB_WORKSPACE\gradlew.bat" build test'
+        run: '& "$env:GITHUB_WORKSPACE\gradlew.bat" build test -PcloudlyRuntimeProject=.cloudly-runtime'
 
   legacy-interop:
     runs-on: windows-latest

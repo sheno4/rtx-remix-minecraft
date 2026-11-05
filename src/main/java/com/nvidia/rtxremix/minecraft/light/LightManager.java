@@ -90,7 +90,6 @@ public class LightManager {
     private static final float MOON_ANGULAR_DIAMETER_DEGREES = 0.52f;
     private static final float SUN_ANGULAR_RADIUS = (float) Math.toRadians(SUN_ANGULAR_DIAMETER_DEGREES * 0.5f);
     private static final float MOON_ANGULAR_RADIUS = (float) Math.toRadians(MOON_ANGULAR_DIAMETER_DEGREES * 0.5f);
-    private static final float SUN_PATH_ROTATION_RAD = (float) Math.toRadians(SUN_PATH_ROTATION_DEG);
     private static final float MIN_DIRECT_RADIANCE = 1.0e-6f;
     private static final float BASE_SUN_LUMINANCE = 30.0f;
     private static final float BASE_MOON_LUMINANCE = 0.06f;
@@ -1040,7 +1039,8 @@ public class LightManager {
                 ? evaluateSkyLightState(
                         world.getSkyAngle(0f),
                         world.getRainGradient(0.0f),
-                        world.getThunderGradient(0.0f))
+                        world.getThunderGradient(0.0f),
+                        renderer.getAc8CloudRenderer().getSunPathRotationDegrees())
                 : SkyLightState.empty();
 
         try {
@@ -1086,8 +1086,9 @@ public class LightManager {
     private static SkyLightState evaluateSkyLightState(
             float skyAngle,
             float rainGradient,
-            float thunderGradient) {
-        float[] sunPosition = computeSunDirection(skyAngle);
+            float thunderGradient,
+            float sunPathRotationDegrees) {
+        float[] sunPosition = computeSunDirection(skyAngle, sunPathRotationDegrees);
         float[] moonPosition = {-sunPosition[0], -sunPosition[1], -sunPosition[2]};
 
         float sunLuminance = BASE_SUN_LUMINANCE * sunIntensity;
@@ -1136,13 +1137,19 @@ public class LightManager {
     }
 
     public static float[] computeSunDirection(float skyAngle) {
+        return computeSunDirection(skyAngle, SUN_PATH_ROTATION_DEG);
+    }
+
+    /** Sun position under a rotation of the daily path around Minecraft's east-west axis. */
+    public static float[] computeSunDirection(float skyAngle, float sunPathRotationDegrees) {
         float angle = (float)(skyAngle * 2.0 * Math.PI + Math.PI / 2.0);
         float sx = (float) Math.cos(angle);
         float sy = (float) Math.sin(angle);
         float sz = 0f;
 
-        float cr = (float) Math.cos(SUN_PATH_ROTATION_RAD);
-        float sr = (float) Math.sin(SUN_PATH_ROTATION_RAD);
+        float rotationRadians = (float) Math.toRadians(sunPathRotationDegrees);
+        float cr = (float) Math.cos(rotationRadians);
+        float sr = (float) Math.sin(rotationRadians);
         float ny = sy * cr - sz * sr;
         float nz = sy * sr + sz * cr;
 

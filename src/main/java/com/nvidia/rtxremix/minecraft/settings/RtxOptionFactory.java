@@ -261,6 +261,9 @@ final class RtxOptionFactory {
     }
 
     static Text intValueText(String settingId, int value) {
+        if ("clouds.ac8.scene".equals(settingId)) {
+            return Text.translatable("rtxremix.settings.value.ac8Scene." + value);
+        }
         if (UNFOCUSED_FRAMERATE_ID.equals(settingId)) {
             // Vanilla's own Max Framerate wording, so the two read alike.
             return value == UnfocusedFramerateLimit.UNLIMITED

@@ -52,6 +52,7 @@ sample-report/
 .claude/
 .codex
 .worktrees/
+/.cloudly-runtime/
 
 # Per-developer editor config
 .cursor/mcp.json

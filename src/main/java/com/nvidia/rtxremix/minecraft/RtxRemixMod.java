@@ -684,6 +684,7 @@ public class RtxRemixMod implements ClientModInitializer {
             }
             mod.frameFailureLogged = false;
             if (remixTexture > 0 && mod.textureOverlay != null && isRtxEnabled()) {
+                remixTexture = renderer.compositeAc8Clouds(remixTexture);
                 mod.textureOverlay.render(remixTexture);
                 RemixWeatherRenderer weather = renderer.getWeatherRenderer();
                 if (weather != null) {
@@ -803,6 +804,8 @@ public class RtxRemixMod implements ClientModInitializer {
                         }
                         if (renderer != null) {
                             context.getSource().sendFeedback(Text.literal("  View Distance Fade: " + renderer.getViewDistanceFade().describe()));
+                            context.getSource().sendFeedback(Text.literal("  AC8 Clouds: "
+                                    + renderer.getAc8CloudRenderer().describe()));
                         }
                         return 1;
                     }))

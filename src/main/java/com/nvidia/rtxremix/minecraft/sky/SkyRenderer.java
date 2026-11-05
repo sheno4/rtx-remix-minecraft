@@ -268,7 +268,8 @@ public class SkyRenderer {
             lightState = lightManager != null
                     ? lightManager.getSkyLightState()
                     : LightManager.SkyLightState.empty();
-            sunDirection = LightManager.computeSunDirection(skyAngle);
+            sunDirection = LightManager.computeSunDirection(skyAngle,
+                    renderer.getAc8CloudRenderer().getSunPathRotationDegrees());
             float celestialIntensity =
                     lightState.weatherDomeRadiance();
             weather = weatherDomeState(
@@ -888,12 +889,13 @@ public class SkyRenderer {
         transform.matrix[11] = (float) cameraPos.z + dz * CELESTIAL_DISTANCE;
     }
 
-    private static void updateStarTransform(
+    private void updateStarTransform(
             Transform transform,
             Vec3d cameraPos,
             float skyAngle) {
         Quaternionf rotation = new Quaternionf()
-                .rotateX((float) Math.toRadians(SUN_PATH_ROTATION_DEG))
+                .rotateX((float) Math.toRadians(
+                        renderer.getAc8CloudRenderer().getSunPathRotationDegrees()))
                 .rotateY(-(float) Math.PI / 2.0f)
                 .rotateX(skyAngle * (float) (Math.PI * 2.0));
         Transform rotated = Transform.fromTRS(

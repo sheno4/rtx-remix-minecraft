@@ -22,6 +22,22 @@ Source: https://github.com/JOML-CI/JOML/tree/1.10.5
 
 ## Redistributed binaries (packaged releases)
 
+### Independently linked AC8 Cloudly library
+
+The `ac8-clouds` branch links `ac8-cloudly-runtime` as a separate nested JAR.
+It is derived from Caustica, copyright ComfyFluffy and contributors, and is
+licensed under LGPL-3.0-or-later. Its license texts and complete corresponding
+library source/build archive are inside that library JAR. The renderer may be
+rebuilt and replaced independently of this Apache-licensed host. Source:
+[sheno4/Caustica, rtx-remix-cloudly-runtime](https://github.com/sheno4/Caustica/tree/rtx-remix-cloudly-runtime).
+Game-derived private scene resources are separate inputs and are not licensed
+by the LGPL notice. See [AC8 clouds](docs/AC8_CLOUDS.md).
+
+This integration also links LWJGL Vulkan and Vulkan Memory Allocator bindings
+and LWJGL's Windows VMA native library, version 3.3.3, under the BSD license.
+Their upstream license metadata is retained in their independently nested JARs.
+Source: <https://github.com/LWJGL/lwjgl3/tree/3.3.3>.
+
 Packaged release JARs bundle the NVIDIA RTX Remix runtime (staged under
 `native/` inside the JAR). The runtime is built from
 [dxvk-remix](https://github.com/NVIDIAGameWorks/dxvk-remix) and carries the

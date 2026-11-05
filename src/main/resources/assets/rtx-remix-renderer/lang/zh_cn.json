@@ -1,0 +1,13 @@
+{
+  "rtxremix.settings.value.ac8Scene.0": "机库",
+  "rtxremix.settings.value.ac8Scene.1": "任务 3",
+  "rtxremix.settings.value.ac8Scene.2": "任务 11",
+  "rtxremix.setting.clouds.ac8.enabled": "AC8 体积云",
+  "rtxremix.setting.clouds.ac8.enabled.tip": "在普通天空维度启用内置 AC8 体积天空，加载完成后替换普通云。云在 Remix 最终画面上合成，不参与 Remix 反射或地形投影。",
+  "rtxremix.setting.clouds.ac8.scene": "AC8 场景",
+  "rtxremix.setting.clouds.ac8.scene.tip": "选择内置的机库、任务 3 或任务 11 云层场景。",
+  "rtxremix.setting.clouds.ac8.height": "AC8 高度",
+  "rtxremix.setting.clouds.ac8.height.tip": "以方块为单位上下移动云层，范围为 -16000 至 16000。",
+  "rtxremix.setting.clouds.ac8.distance": "AC8 距离（千米）",
+  "rtxremix.setting.clouds.ac8.distance.tip": "云层的最大追踪距离，单位为千米。Minecraft 地形始终按真实深度遮挡云层。"
+}

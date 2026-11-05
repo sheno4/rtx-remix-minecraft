@@ -1,0 +1,31 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#version 450 core
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(binding = 0) uniform sampler2D RemixColor;
+layout(binding = 1) uniform sampler2D RemixDepth;
+layout(rgba16f, binding = 0) writeonly uniform image2D CloudColor;
+layout(r32f, binding = 1) writeonly uniform image2D CloudDepth;
+
+ivec2 sourcePixel(ivec2 pixel, ivec2 sourceSize, ivec2 outputSize) {
+    return min(ivec2((vec2(pixel) + 0.5) * vec2(sourceSize) / vec2(outputSize)),
+               sourceSize - 1);
+}
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(CloudColor);
+    if (any(greaterThanEqual(pixel, size))) return;
+
+    // Sampling an sRGB Remix texture already produces display-linear RGB.
+    vec4 color = texelFetch(RemixColor,
+            sourcePixel(pixel, textureSize(RemixColor, 0), size), 0);
+    float depth = texelFetch(RemixDepth,
+            sourcePixel(pixel, textureSize(RemixDepth, 0), size), 0).r;
+    float reversedDepth = isnan(depth) || isinf(depth) ? 0.0 : 1.0 - clamp(depth, 0.0, 1.0);
+    imageStore(CloudColor, pixel, color);
+    imageStore(CloudDepth, pixel, vec4(reversedDepth));
+}

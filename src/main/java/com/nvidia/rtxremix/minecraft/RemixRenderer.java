@@ -45,6 +45,7 @@ import com.nvidia.rtxremix.minecraft.entity.RemixEntityPass;
 import com.nvidia.rtxremix.minecraft.entity.RemixEntitySubmitter;
 import com.nvidia.rtxremix.minecraft.entity.RemixFirstPersonPass;
 import com.nvidia.rtxremix.minecraft.cloud.CloudRenderer;
+import com.nvidia.rtxremix.minecraft.cloud.Ac8CloudRenderer;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.loader.api.FabricLoader;
@@ -142,6 +143,7 @@ public class RemixRenderer {
     private LightManager lightManager;
     private SkyRenderer skyRenderer;
     private CloudRenderer cloudRenderer;
+    private final Ac8CloudRenderer ac8CloudRenderer = new Ac8CloudRenderer();
     private BlockTextureManager textureManager;
     private PostProcessingSettings postProcessingSettings;
     
@@ -542,6 +544,9 @@ public class RemixRenderer {
         if (!initialized) return;
 
         applyPendingWorldResourceChanges();
+        MinecraftClient client = MinecraftClient.getInstance();
+        ac8CloudRenderer.prepare(client.world,
+                client.getWindow().getFramebufferWidth(), client.getWindow().getFramebufferHeight());
         if (RtxRemixMod.isBlockEntitiesEnabled()) {
             preloadEntityAtlasesForCapture();
         }
@@ -569,6 +574,7 @@ public class RemixRenderer {
         if (chunkManager != null) chunkManager.clear();
         if (textureManager != null) textureManager.reload();
         if (skyRenderer != null) skyRenderer.reloadResources();
+        ac8CloudRenderer.clearWorld();
         if (cloudRenderer != null) {
             try {
                 cloudRenderer.cleanup();
@@ -913,7 +919,7 @@ public class RemixRenderer {
                 }
             }
 
-            if (RtxRemixMod.isWorldActive()) {
+            if (RtxRemixMod.isWorldActive() && !ac8CloudRenderer.isActive()) {
                 perfTimer.begin(perfClouds);
                 try (ProfileScope cloudScope = ProfileScope.begin("Clouds")) {
                     cloudRenderer.render(world, cameraPos, tickDelta);
@@ -1241,6 +1247,8 @@ public class RemixRenderer {
                         worldFov,
                         aspect);
             }
+            ac8CloudRenderer.updateCamera(camera, tickDelta, worldFov, aspect,
+                    rightX, rightY, rightZ, upX, upY, upZ, forwardX, forwardY, forwardZ);
     
             CameraInfoParameterizedEXT worldCameraParams = CameraInfoParameterizedEXT.builder()
                 .position((float) pos.x, (float) pos.y, (float) pos.z)
@@ -1447,6 +1455,17 @@ public class RemixRenderer {
     public int getInteropDepthTexture() {
         return interopGlVk.getDepthTexture();
     }
+
+    /** Composites the separately licensed cloud runtime before Minecraft weather and UI. */
+    public int compositeAc8Clouds(int remixColor) {
+        try (ProfileScope ignored = ProfileScope.begin("Clouds.AC8")) {
+            return ac8CloudRenderer.composite(remixColor, interopGlVk.getDepthTexture());
+        }
+    }
+
+    public Ac8CloudRenderer getAc8CloudRenderer() {
+        return ac8CloudRenderer;
+    }
     
     /** Runs on the client executor so the clear lands during teardown, before the next world initializes. */
     public void clearWorld() {
@@ -1498,6 +1517,7 @@ public class RemixRenderer {
      */
     private void doClearWorld() {
         LOGGER.info("Clearing world resources...");
+        ac8CloudRenderer.clearWorld();
         joinInFlightParticleRenderTask();
         discardPendingParticleFrame();
         
@@ -1554,6 +1574,7 @@ public class RemixRenderer {
         discardPendingParticleFrame();
         shutdownParticleExecutor();
         doClearWorld();
+        ac8CloudRenderer.close();
         if (skyRenderer != null) {
             skyRenderer.shutdown();
             skyRenderer = null;

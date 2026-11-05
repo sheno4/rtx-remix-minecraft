@@ -35,6 +35,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - name: Check out the independently licensed Cloudly source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: sheno4/Caustica
+          ref: fc3ad81ff30aab4b8db182570976b2aa9794ff41
+          path: .cloudly-runtime
+          persist-credentials: false
       - name: Read the release version
         id: version
         run: |
@@ -44,7 +51,7 @@ jobs:
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
       # The pinned runtime comes from public Packman; no credentials are used.
       - name: Stage the release files
-        run: '& "$env:GITHUB_WORKSPACE\gradlew.bat" stageReleaseAssets'
+        run: '& "$env:GITHUB_WORKSPACE\gradlew.bat" stageReleaseAssets -PcloudlyRuntimeProject=.cloudly-runtime'
       # The JAR and the zips are already compressed, so storing them as they
       # are saves runner time.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

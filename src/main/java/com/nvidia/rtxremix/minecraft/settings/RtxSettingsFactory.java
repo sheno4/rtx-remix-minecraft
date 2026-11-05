@@ -15,6 +15,7 @@ import com.nvidia.rtxremix.minecraft.RtxRemixMod;
 import com.nvidia.rtxremix.minecraft.sky.SkyRenderer;
 import com.nvidia.rtxremix.minecraft.UnfocusedFramerateLimit;
 import com.nvidia.rtxremix.minecraft.entity.RemixEntityPass;
+import com.nvidia.rtxremix.minecraft.cloud.Ac8CloudRenderer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -135,6 +136,20 @@ public final class RtxSettingsFactory {
                 1.0,
                 SkyRenderer::getMinimumCelestialWeatherVisibility,
                 SkyRenderer::setMinimumCelestialWeatherVisibility));
+
+        Ac8CloudRenderer ac8 = renderer.getAc8CloudRenderer();
+        list.add(RtxSetting.ofBool("clouds.ac8.enabled", SettingGroup.CLOUDS,
+                "rtxremix.setting.clouds.ac8.enabled", "rtxremix.setting.clouds.ac8.enabled.tip",
+                true, ac8::isEnabled, ac8::setEnabled));
+        list.add(RtxSetting.ofInt("clouds.ac8.scene", SettingGroup.CLOUDS,
+                "rtxremix.setting.clouds.ac8.scene", "rtxremix.setting.clouds.ac8.scene.tip",
+                0, 2, 0, ac8::getScene, ac8::setScene).deferSliderApply());
+        list.add(RtxSetting.ofInt("clouds.ac8.height", SettingGroup.CLOUDS,
+                "rtxremix.setting.clouds.ac8.height", "rtxremix.setting.clouds.ac8.height.tip",
+                -16000, 16000, 0, ac8::getHeightOffset, ac8::setHeightOffset));
+        list.add(floatSetting("clouds.ac8.distance", SettingGroup.CLOUDS,
+                "rtxremix.setting.clouds.ac8.distance", 1.0, 200.0,
+                ac8::getMaxDistanceKm, ac8::setMaxDistanceKm));
 
         list.add(RtxSetting.ofBool("clouds.procedural", SettingGroup.CLOUDS,
                 "rtxremix.setting.clouds.procedural",
