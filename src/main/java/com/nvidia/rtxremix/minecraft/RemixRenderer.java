@@ -1459,7 +1459,7 @@ public class RemixRenderer {
     /** Composites the separately licensed cloud runtime before Minecraft weather and UI. */
     public int compositeAc8Clouds(int remixColor) {
         try (ProfileScope ignored = ProfileScope.begin("Clouds.AC8")) {
-            return ac8CloudRenderer.composite(remixColor, interopGlVk.getDepthTexture());
+            return ac8CloudRenderer.composite(remixColor, interopGlVk.getDepthTexture(), remixApi);
         }
     }
 

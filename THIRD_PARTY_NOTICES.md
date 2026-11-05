@@ -6,6 +6,14 @@ locations given.
 
 ## Vendored source code
 
+### LWJGL Vulkan extension enumeration
+
+- File: `src/main/java/com/nvidia/rtxremix/minecraft/mixin/LwjglVulkanInstanceMixin.java`
+- Copyright (c) 2012-present Lightweight Java Game Library. All rights reserved.
+- License: BSD 3-Clause (see [packaging/licenses/lwjgl/LICENSE.txt](packaging/licenses/lwjgl/LICENSE.txt))
+- Source: [LWJGL 3.4.1 VkInstance.java](https://github.com/LWJGL/lwjgl3/blob/3.4.1/modules/lwjgl/vulkan/src/main/java/org/lwjgl/vulkan/VkInstance.java)
+- Backports heap allocation and deterministic cleanup of the driver-sized device-extension array to Minecraft's LWJGL 3.3.3. The loader entry point is obtained through LWJGL's public function provider.
+
 ### Gradle wrapper
 
 - Files: `gradlew.bat`, `gradle/wrapper/`, `forge-1.12.2/gradlew*`, `forge-1.12.2/gradle/wrapper/`

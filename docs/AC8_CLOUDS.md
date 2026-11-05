@@ -25,6 +25,10 @@ bundle. It retains the physical foreground-cloud transport and uses Remix's
 actual primary depth for terrain occlusion, with projected-depth conversion at
 the host boundary.
 
+Terrain convergence uses Remix's resolved distance-fade endpoints, including
+world/profile/user overrides, rather than a nominal chunk distance or the cloud
+distance setting. The AC8 atmosphere normalization remains independent.
+
 This branch uses the published Remix color/depth interop API without changing
 the copied C header or JNI ABI. OpenGL and a UUID-matched Vulkan device share
 dedicated images and binary semaphores. No rendered image is read back to the
@@ -75,7 +79,7 @@ native library in one Fabric JAR.
 
 Distribution packaging refuses missing private scenes. Public CI has no private
 bundle and cannot generate the complete AC8 delivery. The public source build
-uses library revision `fc3ad81ff30aab4b8db182570976b2aa9794ff41`.
+uses library revision `b6efd87d9751818478575b6963e2a71642eb08dc`.
 
 The nested library carries its LGPL/GPL license texts and corresponding source
 archive under `META-INF/cloudly-source/`. It can be rebuilt and replaced

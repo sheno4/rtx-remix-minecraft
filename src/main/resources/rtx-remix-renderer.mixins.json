@@ -45,6 +45,7 @@
         "KeyboardMixin",
         "LightStorageMixin",
         "LivingEntityRendererNameMixin",
+        "LwjglVulkanInstanceMixin",
         "MatrixStackAccessor",
         "MatrixStackEntryAccessor",
         "MinecraftClientMixin",
