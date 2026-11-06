@@ -121,6 +121,13 @@ typedef remixapi_ErrorCode (REMIXAPI_CALL* PFN_remixapi_RegisterCloudly)(
 typedef remixapi_ErrorCode (REMIXAPI_CALL* PFN_remixapi_SetCloudlyFrameData)(
   const void* hostData, uint32_t size);
 
+#define REMIXAPI_CLOUDLY_CAPABILITY_HDR 1u
+#define REMIXAPI_CLOUDLY_CAPABILITY_SURFACE_SHADOW 2u
+#define REMIXAPI_CLOUDLY_CAPABILITY_ORIGINAL_RAYS 4u
+
+// CapabilityBits is also exported as immutable data for packaging validation.
+typedef uint32_t (REMIXAPI_CALL* PFN_remixapi_CloudlyCapabilities)(void);
+
 #ifdef __cplusplus
 }
 static_assert(sizeof(remixapi_CloudlyImage) == 32);

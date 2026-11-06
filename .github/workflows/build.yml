@@ -26,12 +26,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: sheno4/Caustica
-          ref: b6efd87d9751818478575b6963e2a71642eb08dc
+          ref: 6b8c11388950cd28a4a4ecd9585ee6988e07f011
           path: .cloudly-runtime
           persist-credentials: false
-      # The pinned runtime comes from public Packman; no credentials are used.
-      - name: Build and test
-        run: '& "$env:GITHUB_WORKSPACE\gradlew.bat" build test -PcloudlyRuntimeProject=.cloudly-runtime'
+      # Public runners have no game-derived shaders or matching custom runtime.
+      - name: Compile Java sources (no native or rendering validation)
+        run: '& "$env:GITHUB_WORKSPACE\gradlew.bat" compileJava -x setupRuntime -x test -PcloudlyRuntimeProject=.cloudly-runtime'
 
   legacy-interop:
     runs-on: windows-latest

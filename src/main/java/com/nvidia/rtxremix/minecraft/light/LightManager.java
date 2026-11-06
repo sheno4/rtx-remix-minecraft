@@ -1063,17 +1063,17 @@ public class LightManager {
         float skyAngle = clouds.getSunAngleRadians() / (float) (Math.PI * 2.0);
         float[] sunPosition = computeSunDirection(skyAngle, scene.noonTiltDegrees());
         float[] moonPosition = {-sunPosition[0], -sunPosition[1], -sunPosition[2]};
-        float scale = clouds.getSceneRadianceScale();
+        // Remix integrates its distant-light coefficient to pi times that value.
+        float scale = clouds.getSceneRadianceScale() / (float) Math.PI;
         float sun = scene.sunIlluminanceLux() * sunIntensity * scale;
         float phase = 0.1f + 0.9f * Math.abs((clouds.getMoonPhase() & 7) - 4) / 4.0f;
         float moon = scene.moonIlluminanceLux() * moonIntensity * phase * scale;
         float[] sunSource = {sun * scene.sunRed(), sun * scene.sunGreen(), sun * scene.sunBlue()};
         float[] moonSource = {moon, moon, moon};
-        float[] sunDirect = applyTransmittance(sunSource, directAtmosphereTransmittance(sunPosition[1]));
-        float[] moonDirect = applyTransmittance(moonSource, directAtmosphereTransmittance(moonPosition[1]));
-        // The native cloud transmittance field attenuates each world-space light sample.
+        // Native light sampling evaluates the original atmosphere and cloud transmittance
+        // from each surface position, using this frame's acknowledged scene.
         return new SkyLightState(sunPosition, moonPosition, sunSource, moonSource,
-                thresholdDirectRadiance(sunDirect), thresholdDirectRadiance(moonDirect),
+                thresholdDirectRadiance(sunSource), thresholdDirectRadiance(moonSource),
                 (float) Math.toRadians(scene.sunAngularDiameterDegrees() * 0.5f),
                 (float) Math.toRadians(scene.moonAngularDiameterDegrees() * 0.5f));
     }

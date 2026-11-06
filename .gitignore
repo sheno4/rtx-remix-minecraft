@@ -69,3 +69,4 @@ nrc_session_log.txt
 /rtxremix-java/**/*.class
 /rtxremix-java/**/*.jar
 /rtxremix-java/**/*.log
+/.build-*.log

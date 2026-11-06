@@ -38,17 +38,24 @@ game state before Submit. Cloudly borrows Remix's Vulkan device and command
 buffer. Its library owns its allocations and descriptors, and GPU completion
 leases keep them alive until their exact native uses finish.
 
-The PREPARE phase records the original density-dependent surface transmittance
-before world light tracing. Distant-light samples read that field at their
-world position; the old global rain attenuation is not applied on top of it.
+The PREPARE phase records the original density-dependent directional shadow maps
+before world light tracing. Distant-light samples evaluate those maps directly
+at their world position; the old global rain attenuation is not applied on top.
+The host submits authored, unattenuated celestial light power. Native distant
+light sampling applies the original atmosphere and cloud attenuation at the
+shaded world position, avoiding an additional Minecraft atmosphere approximation.
 The COMPOSITE phase runs after reconstruction and upscaling, before exposure,
 bloom and display mapping. Both sides use scene-linear BT.709 directly, without
 an inverse-Reinhard/Reinhard display conversion. Physical first-hit reversed
 depth remains separate from reconstruction and PSR guides.
 
-The custom-runtime migration is under development. World-space ray transport
-for sky reflections and indirect illumination must be connected before a new
-complete package is delivered. Compilation does not establish AC8 visual parity.
+World-space cloud and atmosphere transport follows actual secondary-ray origins
+and physical segment lengths, including PSR reflection/refraction and SHaRC
+sky training. Analytic celestial lighting and emissive disks use separate
+estimators to avoid double counting. Original catalogue stars use the source
+Allocate/Fill/Render programs, with a GPU-only bucket scan. Camera stars retain
+the authored screen fraction, radius and FOV; the reflection catalogue is a
+2048-pixel cube per face. Compilation does not establish AC8 visual parity.
 The earlier `.2` package uses the display-only compositor; these source changes
 must not be packaged with its stock runtime.
 
@@ -80,6 +87,12 @@ public CI. Source-only builds compile the host and library but do not contain
 the authored scenes. The complete private delivery includes those scenes,
 Remix's Windows runtime, the JNI bridge, Vulkan/VMA dependencies and the VMA
 native library in one Fabric JAR.
+
+Runtime staging and packaging inspect the DLL's PE exports without loading or
+executing it. They require the recording and capability-query functions and the
+immutable `remixapi_CloudlyCapabilityBits` value with HDR composition, surface
+shadow and original ray-transport bits set. A build without the private shader
+adapter fails this check even if the generic recording extension is present.
 
 Distribution packaging refuses missing private scenes. Public CI has no private
 bundle and cannot generate the complete AC8 delivery. The public source build

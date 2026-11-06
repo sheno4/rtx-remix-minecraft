@@ -12,6 +12,8 @@ plugins {
     id 'java'
 }
 
+apply from: 'gradle/verify-cloudly-runtime.gradle'
+
 interface RuntimeFetchServices {
     @Inject
     ExecOperations getExecOperations()
@@ -345,6 +347,7 @@ def syncRuntimeSdkTask = tasks.register('syncRuntimeSdk', Sync) {
                 "  .\\tools\\rtx.bat sdk local --arch ${runtimeArch} --path <dir>\n" +
                 "docs/GETTING_STARTED.md#get-a-runtime describes local staging.")
         }
+        verifyCloudlyRuntime(file("${runtimeSdkDir}/d3d9.dll"), runtimeArch)
     }
     from(runtimeSdkDir) {
         exclude 'remixbridge.dll', 'remixbridge.pdb'
@@ -542,6 +545,7 @@ def packageJarTask = tasks.register('packageJar', Zip) {
 
     doFirst {
         checkPackageSourceHomogeneity()
+        buildArches.each { arch -> verifyCloudlyRuntime(file("remix-runtime/${arch}/d3d9.dll"), arch) }
         def bundlePath = providers.gradleProperty('cloudlyBundleInputRoot').orNull
         if (!bundlePath) {
             throw new GradleException('A distributable AC8 JAR requires -PcloudlyBundleInputRoot=<private bundle>. ' +

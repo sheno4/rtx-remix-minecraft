@@ -913,7 +913,12 @@ Java_com_nvidia_rtxremix_RemixBridge_registerCloudly(JNIEnv* env, jclass, jobjec
             GetProcAddress(g_remixDll, "remixapi_RegisterCloudly"));
     auto setDataFn = reinterpret_cast<PFN_remixapi_SetCloudlyFrameData>(
             GetProcAddress(g_remixDll, "remixapi_SetCloudlyFrameData"));
-    if (!registerFn || !setDataFn) return REMIXAPI_ERROR_CODE_INCOMPATIBLE_VERSION;
+    auto capabilitiesFn = reinterpret_cast<PFN_remixapi_CloudlyCapabilities>(
+            GetProcAddress(g_remixDll, "remixapi_CloudlyCapabilities"));
+    if (!registerFn || !setDataFn || !capabilitiesFn ||
+            (remixCall([&] { return capabilitiesFn(); }) & 7u) != 7u) {
+        return REMIXAPI_ERROR_CODE_INCOMPATIBLE_VERSION;
+    }
     g_registerCloudly = registerFn;
     g_setCloudlyFrameData = setDataFn;
     if (!callbacks) return remixCall([&] { return registerFn(nullptr, nullptr); });
