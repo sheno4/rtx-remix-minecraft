@@ -9,7 +9,7 @@ ext.verifyCloudlyRuntime = { File dll, String arch ->
         throw new GradleException("Missing AC8 native runtime: ${dll}")
     }
     new RandomAccessFile(dll, 'r').withCloseable { binary ->
-        def requireBytes = { long offset, long length ->
+        def requireBytes = { offset, length ->
             if (offset < 0 || length < 0 || offset > binary.length() - length) {
                 throw new GradleException("Invalid PE data in AC8 native runtime: ${dll}")
             }
@@ -63,7 +63,7 @@ ext.verifyCloudlyRuntime = { File dll, String arch ->
             long section = optional + optionalSize + index * 40
             [rva: uint32(section + 12), rawSize: uint32(section + 16), rawOffset: uint32(section + 20)]
         }
-        def fileOffset = { long rva, long size ->
+        def fileOffset = { rva, size ->
             if (rva < headerSize && size <= headerSize - rva) {
                 requireBytes(rva, size)
                 return rva
