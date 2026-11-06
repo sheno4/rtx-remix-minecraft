@@ -391,7 +391,7 @@ extern "C" {
     remixapi_TexturePurpose  purpose;  // How to process mips and sample this texture
   } remixapi_TextureFromMemoryInfo;
 
-  // A single sub-region patch applied to a target texture's mip 0. Pixel
+  // A single sub-region patch applied to a memory-backed texture's mip 0. Pixel
   // data must be in the destination texture's format (no conversion is
   // performed at upload time; see remixapi_UpdateTextureFromMemory).
   typedef struct remixapi_TexturePatch {
@@ -1038,6 +1038,10 @@ extern "C" {
     REMIXAPI_DXVK_COPY_RENDERING_OUTPUT_TYPE_NORMALS = 2,
     REMIXAPI_DXVK_COPY_RENDERING_OUTPUT_TYPE_OBJECT_PICKING = 3,
     REMIXAPI_DXVK_COPY_RENDERING_OUTPUT_TYPE_GUI = 4,
+    REMIXAPI_DXVK_COPY_RENDERING_OUTPUT_TYPE_WORLD_POSITION_RAW = 5,
+    REMIXAPI_DXVK_COPY_RENDERING_OUTPUT_TYPE_TEXCOORDS_RAW = 6,
+    REMIXAPI_DXVK_COPY_RENDERING_OUTPUT_TYPE_NORMAL_F32 = 7,
+    REMIXAPI_DXVK_COPY_RENDERING_OUTPUT_TYPE_COVERAGE = 8,
   } remixapi_dxvk_CopyRenderingOutputType;
 
   typedef remixapi_ErrorCode(REMIXAPI_PTR* PFN_remixapi_dxvk_CopyRenderingOutput)(

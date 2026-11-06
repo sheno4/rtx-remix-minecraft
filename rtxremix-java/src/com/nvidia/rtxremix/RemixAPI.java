@@ -55,6 +55,27 @@ public class RemixAPI {
 
     private RemixAPI() {}
 
+    /** Installs a cloud recorder on the runtime's command-stream thread. */
+    public void registerCloudly(CloudlyCallbacks callbacks) {
+        checkInitialized();
+        int result = RemixBridge.registerCloudly(callbacks);
+        if (result != ErrorCode.SUCCESS) {
+            throw new RemixException("Failed to register native cloud renderer", result);
+        }
+    }
+
+    /** Copies a direct, native-order cloud-state packet for the next Submit. */
+    public void setCloudlyFrameData(ByteBuffer data) {
+        checkInitialized();
+        if (data != null && (!data.isDirect() || data.position() != 0)) {
+            throw new IllegalArgumentException("Cloud state requires a direct buffer positioned at zero");
+        }
+        int result = RemixBridge.setCloudlyFrameData(data, data == null ? 0 : data.remaining());
+        if (result != ErrorCode.SUCCESS) {
+            throw new RemixException("Failed to stage native cloud state", result);
+        }
+    }
+
     public static long makeVersion(int major, int minor, int patch) {
         return ((long) major << 48) | ((long) minor << 16) | (long) patch;
     }

@@ -225,7 +225,7 @@ dependencies {
     modImplementation fabricApiCoordinate
 
     // Link the independently licensed cloud renderer without merging its source.
-    include implementation('dev.comfyfluffy.cloudly:ac8-cloudly-runtime:0.1.0-remix.2')
+    include implementation('dev.comfyfluffy.cloudly:ac8-cloudly-runtime:0.1.0-remix.3')
     include implementation('org.lwjgl:lwjgl-vulkan:3.3.3')
     include implementation('org.lwjgl:lwjgl-vma:3.3.3')
     include runtimeOnly('org.lwjgl:lwjgl-vma:3.3.3:natives-windows')

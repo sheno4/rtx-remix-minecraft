@@ -684,7 +684,6 @@ public class RtxRemixMod implements ClientModInitializer {
             }
             mod.frameFailureLogged = false;
             if (remixTexture > 0 && mod.textureOverlay != null && isRtxEnabled()) {
-                remixTexture = renderer.compositeAc8Clouds(remixTexture);
                 mod.textureOverlay.render(remixTexture);
                 RemixWeatherRenderer weather = renderer.getWeatherRenderer();
                 if (weather != null) {

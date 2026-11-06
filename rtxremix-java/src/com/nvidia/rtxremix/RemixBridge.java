@@ -52,6 +52,15 @@ public final class RemixBridge {
 
     public static native int shutdown();
 
+    /** Registers native-thread cloud recording callbacks; null removes the registration. */
+    public static native int registerCloudly(CloudlyCallbacks callbacks);
+
+    /**
+     * Copies bytes from a direct buffer before returning. Data is captured in Submit order.
+     * A null buffer is permitted only with size zero and clears the current frame data.
+     */
+    public static native int setCloudlyFrameData(ByteBuffer data, int size);
+
     public static native int submit(int interopFlags);
 
     public static native int present(long hwndOverride,

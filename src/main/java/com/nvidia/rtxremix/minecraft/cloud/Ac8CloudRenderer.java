@@ -4,49 +4,44 @@
  */
 package com.nvidia.rtxremix.minecraft.cloud;
 
-import com.nvidia.rtxremix.minecraft.RtxRemixMod;
-import com.nvidia.rtxremix.minecraft.gl.CloudlyGlInterop;
-import com.nvidia.rtxremix.minecraft.light.LightManager;
+import com.nvidia.rtxremix.CloudlyCallbacks;
 import com.nvidia.rtxremix.RemixAPI;
-import dev.comfyfluffy.cloudly.CloudlyRuntime;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
+import com.nvidia.rtxremix.minecraft.RtxRemixMod;
+import com.nvidia.rtxremix.minecraft.light.LightManager;
+import dev.comfyfluffy.cloudly.BorrowedCloudlyRuntime;
 import net.minecraft.client.render.DimensionEffects;
 import net.minecraft.client.world.ClientWorld;
-import net.minecraft.util.math.Vec3d;
-import org.joml.Matrix4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Minecraft state adapter for the separately licensed Cloudly compute runtime.
- * Composites against Remix's final display image; Remix's path-traced lighting
- * and reflection inputs remain owned by Remix.
- */
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
+/** Captures Minecraft sky state for the separately licensed native-thread cloud recorder. */
 public final class Ac8CloudRenderer implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(Ac8CloudRenderer.class);
     private static final String[] SCENES = {"hangar", "mission3", "mission11"};
-    private static final CloudlyRuntime.Lighting SKY_LIGHTING = CloudlyRuntime.Lighting.vanilla();
+    private static final int HOST_BYTES = 96;
+    private static final float WORLD_SUN_REFERENCE = 30.0f;
+    private static final float BLOCK_EMISSION = 2000.0f;
+    private static final float NIGHT_AIRGLOW = 0.002f;
+    private static final float STAR_LUMINANCE = 10.0f;
+    private static final float MOON_FIXED_FRACTION = 0.1f;
 
-    private final Matrix4f view = new Matrix4f();
-    private final Matrix4f inverseClip = new Matrix4f();
-    private final float[] inverseClipValues = new float[16];
-    private final byte[] resolvedOption = new byte[64];
-    private CloudlyRuntime runtime;
-    private CloudlyGlInterop interop;
+    private final ByteBuffer packet = ByteBuffer.allocateDirect(HOST_BYTES).order(ByteOrder.LITTLE_ENDIAN);
+    private RemixAPI api;
+    private Recorder recorder;
+    private BorrowedCloudlyRuntime.ReadyScene lightScene;
     private boolean enabled = true;
     private int scene;
     private int heightOffset;
     private float maxDistanceKm = 100.0f;
-    private boolean settingsDirty = true;
+    private boolean resetHistory = true;
     private boolean failed;
     private boolean active;
+    private boolean requested;
     private boolean cameraValid;
-    private long frameIndex;
     private double timeSeconds;
-    private double cameraX;
-    private double cameraY;
-    private double cameraZ;
     private float sunAngle;
     private float starBrightness;
     private int moonPhase;
@@ -54,67 +49,39 @@ public final class Ac8CloudRenderer implements AutoCloseable {
     private float rain;
     private float thunder;
 
-    /** Prepares the next frame before ordinary clouds are submitted to Remix. */
-    public void prepare(ClientWorld world, int width, int height) {
+    /** Freezes the scene publication before this frame submits its lights and sky. */
+    public void prepare(ClientWorld world, int width, int height, RemixAPI remix) {
         cameraValid = false;
-        boolean requested = enabled && RtxRemixMod.isWorldActive()
-                && RtxRemixMod.isSkyEnabled() && world != null
-                && world.getDimensionEffects().getSkyType() == DimensionEffects.SkyType.NORMAL
+        requested = enabled && RtxRemixMod.isWorldActive() && RtxRemixMod.isSkyEnabled()
+                && world != null && world.getDimensionEffects().getSkyType() == DimensionEffects.SkyType.NORMAL
                 && width > 0 && height > 0;
         if (!requested || failed) {
-            if (active && runtime != null) runtime.resetHistory();
             active = false;
+            lightScene = null;
+            unregister();
             return;
         }
         try {
-            if (runtime == null) {
-                runtime = CloudlyRuntime.create(CloudlyGlInterop.deviceUuid());
-                settingsDirty = true;
+            if (recorder != null && recorder.failure != null) throw new IllegalStateException(
+                    "Native AC8 cloud recording failed", recorder.failure);
+            if (recorder == null) {
+                Recorder created = new Recorder();
+                remix.registerCloudly(created);
+                api = remix;
+                recorder = created;
+                resetHistory = true;
             }
-            if (settingsDirty) {
-                runtime.setSettings(new CloudlyRuntime.Settings(
-                        enabled, SCENES[scene], heightOffset, maxDistanceKm));
-                settingsDirty = false;
-            }
-            if (!runtime.isReady()) {
-                active = false;
-                return;
-            }
-            if (interop == null || interop.width() != width || interop.height() != height) {
-                releaseInterop();
-                interop = new CloudlyGlInterop(runtime.resize(width, height));
-                runtime.resetHistory();
-            }
-            active = true;
+            lightScene = recorder.runtime.readyScene();
+            active = lightScene != null;
         } catch (RuntimeException | LinkageError failure) {
             fail(failure);
         }
     }
 
-    /**
-     * Matches the parameterized Remix camera: zero-to-one reversed depth,
-     * Vulkan's downward framebuffer Y, and a rotation-only view matrix.
-     */
-    public void updateCamera(Camera camera, float tickDelta, float fovY, float aspect,
-            float rightX, float rightY, float rightZ,
-            float upX, float upY, float upZ,
-            float forwardX, float forwardY, float forwardZ) {
-        if (!active) return;
-        ClientWorld world = MinecraftClient.getInstance().world;
-        if (world == null) return;
-        Vec3d position = camera.getPos();
-        cameraX = position.x;
-        cameraY = position.y;
-        cameraZ = position.z;
+    /** Captures game state only on the render thread; native callbacks never read the client. */
+    public void captureWorld(ClientWorld world, float tickDelta) {
+        if (!requested || failed || recorder == null || world == null) return;
         timeSeconds = (world.getTime() + (double) tickDelta) / 20.0;
-
-        view.identity()
-                .m00(rightX).m10(rightY).m20(rightZ)
-                .m01(upX).m11(upY).m21(upZ)
-                .m02(-forwardX).m12(-forwardY).m22(-forwardZ);
-        inverseClip.setPerspective((float) Math.toRadians(fovY), aspect, 1000.0f, 0.05f, true);
-        inverseClip.m11(-inverseClip.m11());
-        inverseClip.mul(view).invert().get(inverseClipValues);
         sunAngle = world.getSkyAngle(tickDelta) * (float) (Math.PI * 2.0);
         starBrightness = world.getStarBrightness(tickDelta);
         moonPhase = world.getMoonPhase();
@@ -124,103 +91,48 @@ public final class Ac8CloudRenderer implements AutoCloseable {
         cameraValid = true;
     }
 
-    /** Runs after the Remix GL wait and before the weather, overlays and HUD. */
-    public int composite(int remixColor, int remixDepth, RemixAPI remix) {
-        if (!active || !cameraValid || remixColor == 0 || remixDepth == 0) return remixColor;
-        try {
-            CloudlyRuntime.SkyFrame skyFrame = captureSkyFrame(remix);
-            interop.stageInputs(remixColor, remixDepth);
-            runtime.render(frameIndex++, timeSeconds, cameraX, cameraY, cameraZ,
-                    inverseClipValues, 0.0f, 0.0f, 1.0f, skyFrame);
-            return interop.awaitOutput();
-        } catch (RuntimeException | LinkageError failure) {
-            fail(failure);
-            return remixColor;
-        }
+    /** Copies this frame's immutable state immediately before the matching native Submit. */
+    public void stageFrame(RemixAPI remix) {
+        if (recorder == null) return;
+        boolean render = requested && cameraValid && !failed && RtxRemixMod.isRtxEnabled();
+        var lighting = lightScene;
+        float sourceSun = lighting == null ? 128000.0f : lighting.sunIlluminanceLux();
+        float sourceMoon = lighting == null ? 5.0f : lighting.moonIlluminanceLux();
+        packet.putInt(0, HOST_BYTES).putInt(4, 1).putFloat(8, WORLD_SUN_REFERENCE / sourceSun);
+        packet.putInt(12, (render ? 1 : 0) | (resetHistory ? 2 : 0));
+        packet.putInt(16, scene).putInt(20, heightOffset).putFloat(24, maxDistanceKm);
+        packet.putFloat(28, sunAngle).putFloat(32, sunAngle + (float) Math.PI).putFloat(36, sunAngle);
+        packet.putFloat(40, starBrightness).putInt(44, moonPhase).putInt(48, seaLevel);
+        packet.putFloat(52, rain).putFloat(56, thunder);
+        packet.putFloat(60, sourceSun * LightManager.getSunIntensity());
+        packet.putFloat(64, sourceMoon * LightManager.getMoonIntensity());
+        packet.putFloat(68, BLOCK_EMISSION).putFloat(72, NIGHT_AIRGLOW).putFloat(76, STAR_LUMINANCE);
+        packet.putFloat(80, MOON_FIXED_FRACTION).putInt(84, lighting == null ? -1 : lighting.sceneIndex());
+        packet.putDouble(88, timeSeconds);
+        packet.position(0).limit(HOST_BYTES);
+        remix.setCloudlyFrameData(packet);
+        if (render) resetHistory = false;
     }
 
-    private CloudlyRuntime.SkyFrame captureSkyFrame(RemixAPI remix) {
-        double fadeStart = 0.0;
-        double fadeEnd = 0.0;
-        double mode = readResolvedNumber(remix, "rtx.viewDistance.distanceMode");
-        if (Double.isFinite(mode) && mode > 0.0) {
-            fadeStart = readResolvedNumber(remix, "rtx.viewDistance.distanceFadeMin");
-            fadeEnd = readResolvedNumber(remix, "rtx.viewDistance.distanceFadeMax");
-            if (!Double.isFinite(fadeStart) || !Double.isFinite(fadeEnd)
-                    || fadeStart < 0.0 || fadeEnd <= fadeStart) {
-                fadeStart = 0.0;
-                fadeEnd = 0.0;
-            }
-        }
-        // Read after Remix submit resolves every conf layer. At the terrain edge the native
-        // composition must converge to its own directional background, not the old Remix sky.
-        return new CloudlyRuntime.SkyFrame(sunAngle, sunAngle + (float) Math.PI, sunAngle,
-                starBrightness, moonPhase, seaLevel, rain, thunder, fadeStart, fadeEnd, SKY_LIGHTING);
-    }
-
-    private double readResolvedNumber(RemixAPI remix, String key) {
-        int size = remix.getConfigVariableResolved(key, resolvedOption);
-        if (size < 2 || size > resolvedOption.length || resolvedOption[size - 1] != 0) {
-            return Double.NaN;
-        }
-        return parseNumber(resolvedOption, size - 1);
-    }
-
-    /** Parses the runtime's ASCII decimal/scientific scalar without allocating per-frame strings. */
-    private static double parseNumber(byte[] bytes, int length) {
-        int cursor = 0;
-        while (cursor < length && bytes[cursor] <= ' ') cursor++;
-        while (length > cursor && bytes[length - 1] <= ' ') length--;
-        boolean negative = cursor < length && bytes[cursor] == '-';
-        if (cursor < length && (bytes[cursor] == '-' || bytes[cursor] == '+')) cursor++;
-        double value = 0.0;
-        double fraction = 0.0;
-        int digits = 0;
-        while (cursor < length) {
-            int character = bytes[cursor];
-            if (character >= '0' && character <= '9') {
-                if (fraction == 0.0) value = value * 10.0 + character - '0';
-                else {
-                    value += (character - '0') * fraction;
-                    fraction *= 0.1;
-                }
-                digits++;
-            } else if (character == '.' && fraction == 0.0) {
-                fraction = 0.1;
-            } else break;
-            cursor++;
-        }
-        if (digits == 0) return Double.NaN;
-        if (cursor < length && (bytes[cursor] == 'e' || bytes[cursor] == 'E')) {
-            cursor++;
-            boolean exponentNegative = cursor < length && bytes[cursor] == '-';
-            if (cursor < length && (bytes[cursor] == '-' || bytes[cursor] == '+')) cursor++;
-            int exponent = 0;
-            int exponentDigits = 0;
-            while (cursor < length && bytes[cursor] >= '0' && bytes[cursor] <= '9') {
-                exponent = exponent * 10 + bytes[cursor++] - '0';
-                if (exponent > 4096) return Double.NaN;
-                exponentDigits++;
-            }
-            if (exponentDigits == 0) return Double.NaN;
-            value *= Math.pow(10.0, exponentNegative ? -exponent : exponent);
-        }
-        return cursor == length ? (negative ? -value : value) : Double.NaN;
-    }
-
-    /** Ordinary cloud meshes stay active until loading and shared-image setup finish. */
     public boolean isActive() { return active; }
     public boolean isEnabled() { return enabled; }
     public int getScene() { return scene; }
     public int getHeightOffset() { return heightOffset; }
     public float getMaxDistanceKm() { return maxDistanceKm; }
+    public float getSunAngleRadians() { return sunAngle; }
+    public int getMoonPhase() { return moonPhase; }
 
-    /** Keeps Remix's direct lights and reflected celestial geometry on the active sky's path. */
-    public float getSunPathRotationDegrees() {
-        return active ? runtime.noonTiltDegrees() : LightManager.SUN_PATH_ROTATION_DEG;
+    /** This snapshot is the same one acknowledged by this frame's native sky packet. */
+    public BorrowedCloudlyRuntime.ReadyScene getLightScene() { return active ? lightScene : null; }
+
+    public float getSceneRadianceScale() {
+        return lightScene == null ? 1.0f : WORLD_SUN_REFERENCE / lightScene.sunIlluminanceLux();
     }
 
-    /** Status for the existing /rtx status diagnostic, outside the per-frame path. */
+    public float getSunPathRotationDegrees() {
+        return active ? lightScene.noonTiltDegrees() : LightManager.SUN_PATH_ROTATION_DEG;
+    }
+
     public String describe() {
         String state = !enabled ? "off" : failed ? "failed" : active ? "active" : "waiting";
         return state + ", scene " + SCENES[scene] + ", height " + heightOffset
@@ -230,22 +142,19 @@ public final class Ac8CloudRenderer implements AutoCloseable {
     public void setEnabled(boolean value) {
         if (enabled == value) return;
         enabled = value;
-        settingsDirty = true;
         failed = false;
         active = false;
-        if (runtime != null) runtime.resetHistory();
+        resetHistory = true;
     }
 
     public void setScene(int value) {
         if (value < 0 || value >= SCENES.length) throw new IllegalArgumentException("Unknown AC8 scene " + value);
         scene = value;
-        settingsDirty = true;
     }
 
     public void setHeightOffset(int value) {
         if (value < -16000 || value > 16000) throw new IllegalArgumentException("AC8 height outside range");
         heightOffset = value;
-        settingsDirty = true;
     }
 
     public void setMaxDistanceKm(float value) {
@@ -253,48 +162,54 @@ public final class Ac8CloudRenderer implements AutoCloseable {
             throw new IllegalArgumentException("AC8 distance outside range");
         }
         maxDistanceKm = value;
-        settingsDirty = true;
     }
 
-    /** Drops world-scoped temporal state even when the connection survives a world swap. */
     public void clearWorld() {
+        requested = false;
         active = false;
         cameraValid = false;
-        frameIndex = 0;
-        if (runtime != null) runtime.resetHistory();
+        lightScene = null;
+        resetHistory = true;
+        unregister();
     }
 
     private void fail(Throwable failure) {
         active = false;
+        requested = false;
         failed = true;
         cameraValid = false;
+        lightScene = null;
         LOGGER.error("AC8 clouds stopped; toggle AC8 Clouds off and on to retry", failure);
-        releaseRuntime();
+        unregister();
     }
 
-    private void releaseInterop() {
-        if (interop != null) {
-            // GL may still sample the previous output; resize must not free it first.
-            org.lwjgl.opengl.GL11.glFinish();
-            interop.close();
-            interop = null;
-        }
+    private void unregister() {
+        if (recorder == null) return;
+        api.registerCloudly(null);
+        api.setCloudlyFrameData(null);
+        recorder = null;
+        api = null;
     }
 
-    private void releaseRuntime() {
-        try {
-            releaseInterop();
-        } finally {
-            if (runtime != null) {
-                runtime.close();
-                runtime = null;
+    @Override public void close() { clearWorld(); }
+
+    private static final class Recorder implements CloudlyCallbacks {
+        private final BorrowedCloudlyRuntime runtime = new BorrowedCloudlyRuntime();
+        private volatile Throwable failure;
+
+        @Override public long record(ByteBuffer frame, ByteBuffer world, ByteBuffer hostData) {
+            try {
+                long lease = runtime.record(frame, world, hostData);
+                if ((world.order(ByteOrder.LITTLE_ENDIAN).getInt(8) & 0x80000000) != 0) {
+                    failure = new IllegalStateException("Cloudly rejected the native frame; see its recording error");
+                }
+                return lease;
+            } catch (RuntimeException | Error thrown) {
+                failure = thrown;
+                throw thrown;
             }
         }
-    }
-
-    @Override
-    public void close() {
-        clearWorld();
-        releaseRuntime();
+        @Override public void retire(long lease) { runtime.retire(lease); }
+        @Override public void release() { runtime.release(); }
     }
 }

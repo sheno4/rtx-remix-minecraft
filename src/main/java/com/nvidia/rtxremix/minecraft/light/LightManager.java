@@ -19,9 +19,11 @@ import com.nvidia.rtxremix.minecraft.block.CopperBeaconBlock;
 import com.nvidia.rtxremix.minecraft.block.CopperBeaconBlockEntity;
 import com.nvidia.rtxremix.minecraft.block.CopperBeaconPose;
 import com.nvidia.rtxremix.minecraft.block.SpotLightBlock;
+import com.nvidia.rtxremix.minecraft.cloud.Ac8CloudRenderer;
 import com.nvidia.rtxremix.minecraft.entity.CopperBeaconAnimationClock;
 import com.nvidia.rtxremix.minecraft.entity.RemixFirstPersonPass;
 import com.nvidia.rtxremix.minecraft.texture.BlockTextureManager;
+import dev.comfyfluffy.cloudly.BorrowedCloudlyRuntime;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -1035,22 +1037,45 @@ public class LightManager {
     private void updateSkyLight(ClientWorld world) {
         // Only a NORMAL sky has a sun and a moon. The End and the Nether pin their time, so
         // evaluating them would light a permanent noon or midnight that vanilla never draws.
-        skyLightState = world.getDimensionEffects().getSkyType() == DimensionEffects.SkyType.NORMAL
-                ? evaluateSkyLightState(
-                        world.getSkyAngle(0f),
-                        world.getRainGradient(0.0f),
-                        world.getThunderGradient(0.0f),
-                        renderer.getAc8CloudRenderer().getSunPathRotationDegrees())
-                : SkyLightState.empty();
+        var cloudSky = renderer.getAc8CloudRenderer();
+        var cloudScene = cloudSky.getLightScene();
+        if (world.getDimensionEffects().getSkyType() != DimensionEffects.SkyType.NORMAL) {
+            skyLightState = SkyLightState.empty();
+        } else if (cloudScene != null) {
+            skyLightState = evaluateCloudlyLightState(cloudSky, cloudScene);
+        } else {
+            skyLightState = evaluateSkyLightState(world.getSkyAngle(0f), world.getRainGradient(0.0f),
+                    world.getThunderGradient(0.0f), SUN_PATH_ROTATION_DEG);
+        }
 
         try {
             sunLight = updateDistantLight(sunLight, skyLightState.sunPosition(), skyLightState.sunDirectRadiance(),
-                    SUN_ANGULAR_DIAMETER_DEGREES);
+                    (float) Math.toDegrees(skyLightState.sunAngularRadius() * 2.0f));
             moonLight = updateDistantLight(moonLight, skyLightState.moonPosition(), skyLightState.moonDirectRadiance(),
-                    MOON_ANGULAR_DIAMETER_DEGREES);
+                    (float) Math.toDegrees(skyLightState.moonAngularRadius() * 2.0f));
         } catch (RemixException e) {
             LOGGER.error("Failed to update sky light: {}", e.getMessage());
         }
+    }
+
+    private static SkyLightState evaluateCloudlyLightState(
+            Ac8CloudRenderer clouds, BorrowedCloudlyRuntime.ReadyScene scene) {
+        float skyAngle = clouds.getSunAngleRadians() / (float) (Math.PI * 2.0);
+        float[] sunPosition = computeSunDirection(skyAngle, scene.noonTiltDegrees());
+        float[] moonPosition = {-sunPosition[0], -sunPosition[1], -sunPosition[2]};
+        float scale = clouds.getSceneRadianceScale();
+        float sun = scene.sunIlluminanceLux() * sunIntensity * scale;
+        float phase = 0.1f + 0.9f * Math.abs((clouds.getMoonPhase() & 7) - 4) / 4.0f;
+        float moon = scene.moonIlluminanceLux() * moonIntensity * phase * scale;
+        float[] sunSource = {sun * scene.sunRed(), sun * scene.sunGreen(), sun * scene.sunBlue()};
+        float[] moonSource = {moon, moon, moon};
+        float[] sunDirect = applyTransmittance(sunSource, directAtmosphereTransmittance(sunPosition[1]));
+        float[] moonDirect = applyTransmittance(moonSource, directAtmosphereTransmittance(moonPosition[1]));
+        // The native cloud transmittance field attenuates each world-space light sample.
+        return new SkyLightState(sunPosition, moonPosition, sunSource, moonSource,
+                thresholdDirectRadiance(sunDirect), thresholdDirectRadiance(moonDirect),
+                (float) Math.toRadians(scene.sunAngularDiameterDegrees() * 0.5f),
+                (float) Math.toRadians(scene.moonAngularDiameterDegrees() * 0.5f));
     }
 
     private RemixLight updateDistantLight(RemixLight light, float[] positionDirection, float[] radiance,

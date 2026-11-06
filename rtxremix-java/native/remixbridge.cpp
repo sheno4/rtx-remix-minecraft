@@ -34,6 +34,7 @@
 #pragma comment(lib, "opengl32.lib")
 
 #include "remix_c.h"
+#include "remix_cloudly.h"
 
 // ════════════════════════════════════════════════════════════════════════════
 // Crash dump: VEH that writes a minidump and a human-readable crash report.
@@ -482,6 +483,92 @@ static HMODULE          g_remixDll   = nullptr;
 static remixapi_Interface g_remix    = {};
 static bool             g_inited     = false;
 
+static PFN_remixapi_RegisterCloudly g_registerCloudly = nullptr;
+static PFN_remixapi_SetCloudlyFrameData g_setCloudlyFrameData = nullptr;
+
+namespace {
+    struct CloudlyRegistration {
+        JavaVM* vm;
+        jobject callbacks;
+        jmethodID record;
+        jmethodID retire;
+        jmethodID release;
+    };
+
+    class CallbackEnvironment {
+    public:
+        explicit CallbackEnvironment(JavaVM* vm) : m_vm(vm) {
+            const jint status = vm->GetEnv(reinterpret_cast<void**>(&m_env), JNI_VERSION_1_8);
+            if (status == JNI_EDETACHED) {
+                m_attached = vm->AttachCurrentThreadAsDaemon(reinterpret_cast<void**>(&m_env), nullptr) == JNI_OK;
+                if (!m_attached) m_env = nullptr;
+            } else if (status != JNI_OK) {
+                m_env = nullptr;
+            }
+        }
+        ~CallbackEnvironment() { if (m_attached) m_vm->DetachCurrentThread(); }
+        JNIEnv* get() const { return m_env; }
+    private:
+        JavaVM* m_vm;
+        JNIEnv* m_env = nullptr;
+        bool m_attached = false;
+    };
+
+    bool reportCloudlyException(JNIEnv* env, const char* operation) {
+        if (!env->ExceptionCheck()) return false;
+        fprintf(stderr, "[remixbridge] Native Cloudly callback failed: %s\n", operation);
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        fflush(stderr);
+        return true;
+    }
+
+    uint64_t REMIXAPI_CALL recordCloudly(const remixapi_CloudlyFrame* frame,
+            remixapi_CloudlyWorld* world, void* userData) {
+        auto* registration = static_cast<CloudlyRegistration*>(userData);
+        CallbackEnvironment scope(registration->vm);
+        JNIEnv* env = scope.get();
+        if (!env || env->PushLocalFrame(4) != JNI_OK) {
+            if (env) reportCloudlyException(env, "allocate callback local frame");
+            world->flags |= 0x80000000u;
+            return 0;
+        }
+        jobject frameBuffer = env->NewDirectByteBuffer(const_cast<remixapi_CloudlyFrame*>(frame), frame->size);
+        jobject worldBuffer = env->NewDirectByteBuffer(world, world->size);
+        jobject hostBuffer = frame->hostDataSize
+                ? env->NewDirectByteBuffer(reinterpret_cast<void*>(static_cast<uintptr_t>(frame->hostData)), frame->hostDataSize)
+                : nullptr;
+        jlong lease = 0;
+        if (!env->ExceptionCheck()) {
+            lease = env->CallLongMethod(registration->callbacks, registration->record,
+                    frameBuffer, worldBuffer, hostBuffer);
+        }
+        if (reportCloudlyException(env, "record")) world->flags |= 0x80000000u;
+        env->PopLocalFrame(nullptr);
+        return static_cast<uint64_t>(lease);
+    }
+
+    void REMIXAPI_CALL retireCloudly(uint64_t lease, void* userData) {
+        auto* registration = static_cast<CloudlyRegistration*>(userData);
+        CallbackEnvironment scope(registration->vm);
+        if (JNIEnv* env = scope.get()) {
+            env->CallVoidMethod(registration->callbacks, registration->retire, static_cast<jlong>(lease));
+            reportCloudlyException(env, "retire");
+        }
+    }
+
+    void REMIXAPI_CALL releaseCloudly(void* userData) {
+        auto* registration = static_cast<CloudlyRegistration*>(userData);
+        CallbackEnvironment scope(registration->vm);
+        if (JNIEnv* env = scope.get()) {
+            env->CallVoidMethod(registration->callbacks, registration->release);
+            reportCloudlyException(env, "release");
+            env->DeleteGlobalRef(registration->callbacks);
+        }
+        delete registration;
+    }
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // Helpers
 // ════════════════════════════════════════════════════════════════════════════
@@ -811,9 +898,67 @@ Java_com_nvidia_rtxremix_RemixBridge_shutdown(JNIEnv*, jclass)
         resetTracyFunctionsLocked();
     }
     jint rc = (jint)remixCall([&] { return shutdown(); });
+    g_registerCloudly = nullptr;
+    g_setCloudlyFrameData = nullptr;
     if (g_remixDll) { FreeLibrary(g_remixDll); g_remixDll = nullptr; }
     memset(&g_remix, 0, sizeof(g_remix));
     return rc;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_nvidia_rtxremix_RemixBridge_registerCloudly(JNIEnv* env, jclass, jobject callbacks)
+{
+    if (!g_inited || !g_remixDll) return REMIXAPI_ERROR_CODE_NOT_INITIALIZED;
+    auto registerFn = reinterpret_cast<PFN_remixapi_RegisterCloudly>(
+            GetProcAddress(g_remixDll, "remixapi_RegisterCloudly"));
+    auto setDataFn = reinterpret_cast<PFN_remixapi_SetCloudlyFrameData>(
+            GetProcAddress(g_remixDll, "remixapi_SetCloudlyFrameData"));
+    if (!registerFn || !setDataFn) return REMIXAPI_ERROR_CODE_INCOMPATIBLE_VERSION;
+    g_registerCloudly = registerFn;
+    g_setCloudlyFrameData = setDataFn;
+    if (!callbacks) return remixCall([&] { return registerFn(nullptr, nullptr); });
+
+    CloudlyRegistration registration = {};
+    if (env->GetJavaVM(&registration.vm) != JNI_OK) return REMIXAPI_ERROR_CODE_GENERAL_FAILURE;
+    jclass callbackClass = env->GetObjectClass(callbacks);
+    if (!callbackClass) return REMIXAPI_ERROR_CODE_GENERAL_FAILURE;
+    registration.record = env->GetMethodID(callbackClass, "record",
+            "(Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)J");
+    if (!env->ExceptionCheck()) registration.retire = env->GetMethodID(callbackClass, "retire", "(J)V");
+    if (!env->ExceptionCheck()) registration.release = env->GetMethodID(callbackClass, "release", "()V");
+    env->DeleteLocalRef(callbackClass);
+    if (env->ExceptionCheck()) return REMIXAPI_ERROR_CODE_INVALID_ARGUMENTS;
+    registration.callbacks = env->NewGlobalRef(callbacks);
+    if (!registration.callbacks) return REMIXAPI_ERROR_CODE_GENERAL_FAILURE;
+    auto* owner = new (std::nothrow) CloudlyRegistration(registration);
+    if (!owner) {
+        env->DeleteGlobalRef(registration.callbacks);
+        return REMIXAPI_ERROR_CODE_GENERAL_FAILURE;
+    }
+    remixapi_CloudlyCallbacks nativeCallbacks = {};
+    nativeCallbacks.size = sizeof(nativeCallbacks);
+    nativeCallbacks.abiVersion = REMIXAPI_CLOUDLY_ABI_VERSION;
+    nativeCallbacks.record = recordCloudly;
+    nativeCallbacks.retire = retireCloudly;
+    nativeCallbacks.release = releaseCloudly;
+    remixapi_ErrorCode result = remixCall([&] { return registerFn(&nativeCallbacks, owner); });
+    if (result != REMIXAPI_ERROR_CODE_SUCCESS) {
+        env->DeleteGlobalRef(owner->callbacks);
+        delete owner;
+    }
+    return result;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_nvidia_rtxremix_RemixBridge_setCloudlyFrameData(JNIEnv* env, jclass, jobject data, jint size)
+{
+    if (!g_inited || !g_setCloudlyFrameData) return REMIXAPI_ERROR_CODE_NOT_INITIALIZED;
+    if (size < 0) return REMIXAPI_ERROR_CODE_INVALID_ARGUMENTS;
+    void* bytes = data ? env->GetDirectBufferAddress(data) : nullptr;
+    if ((data && (!bytes || env->GetDirectBufferCapacity(data) < size)) || (!data && size)) {
+        return REMIXAPI_ERROR_CODE_INVALID_ARGUMENTS;
+    }
+    return remixCall([&] { return g_setCloudlyFrameData(bytes, static_cast<uint32_t>(size)); });
 }
 
 JNIEXPORT jint JNICALL

@@ -2,7 +2,8 @@
 
 The `ac8-clouds` branch starts from `sheno4/rtx-remix-minecraft` main commit
 `76edfb0`. It keeps the project's Minecraft **1.21.1**, Fabric, Java 21 and
-published Remix runtime contract. It is not a Minecraft 26.x port.
+Remix API 0.16 contract. It is not a Minecraft 26.x port. The native HDR path
+requires the matching custom runtime, including the Cloudly recording extension.
 
 The private Windows build bundles Hangar, Mission 3 and Mission 11. In the
 Minecraft graphics settings, the AC8 controls enable clouds, select a scene,
@@ -12,9 +13,11 @@ a ready scene replaces the previous one. `/rtx status` reports active, waiting,
 disabled or failed cloud state. The AC8 settings use the existing settings
 transaction and persistence mechanism.
 
-The active scene's authored solar path also drives Remix's existing sun/moon
-lights and celestial mesh orientation, so a scene change does not leave those
-lights on the default solar path.
+The render thread captures a ready scene before submitting its sun/moon lights.
+The same scene index is acknowledged in the native frame packet, so asynchronous
+preparation does not publish a different sky after its lights were submitted.
+The authored solar path, radiance, color and angular size drive the distant
+lights. The ordinary Minecraft celestial meshes are removed while Cloudly runs.
 
 ## Rendering boundary
 
@@ -29,26 +32,25 @@ Terrain convergence uses Remix's resolved distance-fade endpoints, including
 world/profile/user overrides, rather than a nominal chunk distance or the cloud
 distance setting. The AC8 atmosphere normalization remains independent.
 
-This branch uses the published Remix color/depth interop API without changing
-the copied C header or JNI ABI. OpenGL and a UUID-matched Vulkan device share
-dedicated images and binary semaphores. No rendered image is read back to the
-CPU. Clouds composite before the existing weather, overlays and HUD.
+The JNI bridge registers a command-stream recorder through
+`remixapi_RegisterCloudly`; `remixapi_SetCloudlyFrameData` copies immutable
+game state before Submit. Cloudly borrows Remix's Vulkan device and command
+buffer. Its library owns its allocations and descriptors, and GPU completion
+leases keep them alive until their exact native uses finish.
 
-Remix currently exposes its **final display image**, not scene-linear HDR
-color. The adapter uses an inverse-Reinhard/Reinhard display bridge around
-Cloudly. It cannot recover clipped HDR values or Remix's original exposure.
-Cloud reflections, cloud-shaped shadows on world geometry and illumination of
-the path-traced scene are not integrated through this display interface. Those
-need an extension in the matching Remix runtime. Do not describe this build as
-complete integration with Remix's path tracer or as verified AC8 visual parity.
+The PREPARE phase records the original density-dependent surface transmittance
+before world light tracing. Distant-light samples read that field at their
+world position; the old global rain attenuation is not applied on top of it.
+The COMPOSITE phase runs after reconstruction and upscaling, before exposure,
+bloom and display mapping. Both sides use scene-linear BT.709 directly, without
+an inverse-Reinhard/Reinhard display conversion. Physical first-hit reversed
+depth remains separate from reconstruction and PSR guides.
 
-The interop design follows the existing Remix GL synchronization flow and the
-external-image/semaphore pattern in the actively maintained, Apache-licensed
-[Khronos Vulkan sample](https://github.com/KhronosGroup/Vulkan-Samples/tree/main/samples/extensions/open_gl_interop).
-An internal custom compute pass would offer HDR and lighting integration, but
-the published C API has no such extension point; its pinned runtime is built
-from a branch whose matching source is not public. No speculative C API entry
-was added.
+The custom-runtime migration is under development. World-space ray transport
+for sky reflections and indirect illumination must be connected before a new
+complete package is delivered. Compilation does not establish AC8 visual parity.
+The earlier `.2` package uses the display-only compositor; these source changes
+must not be packaged with its stock runtime.
 
 ## Source and build
 
@@ -70,6 +72,8 @@ requires Slang 2026.14.1 in `SLANG_SDK` and a Vulkan SDK providing
 ```
 
 Use `-PcloudlyRuntimeProject=<directory>` for another library checkout. The
+Gradle composite build links that source directly. Stage a matching custom
+native runtime before packaging; a stock SDK lacks the recording exports. The
 bundle input is outside both public source checkouts. It contains game-derived
 textures, programs and parameter templates; do not commit it or publish it in
 public CI. Source-only builds compile the host and library but do not contain
@@ -79,7 +83,7 @@ native library in one Fabric JAR.
 
 Distribution packaging refuses missing private scenes. Public CI has no private
 bundle and cannot generate the complete AC8 delivery. The public source build
-uses library revision `b6efd87d9751818478575b6963e2a71642eb08dc`.
+depends on library version `0.1.0-remix.3`.
 
 The nested library carries its LGPL/GPL license texts and corresponding source
 archive under `META-INF/cloudly-source/`. It can be rebuilt and replaced
@@ -91,6 +95,7 @@ Local Java/JNI compilation, bridge SPIR-V compilation/validation and package
 integrity are distinct from rendering acceptance. The upstream package task
 also invokes its existing JVM tests, including bitmap-based font metrics;
 delivery commands explicitly skip these tests to respect the task's testing
-limits. No Minecraft launch, GPU rendering, screenshot recognition or
-performance measurement has been performed for this port. Package checks do
-not prove visual agreement or frame rate.
+limits. The custom-runtime migration has not been launched in Minecraft or
+validated through GPU rendering. No screenshot recognition is used. Feedback
+from the installed `.2` build applies to its older display-only path. Package
+checks do not prove visual agreement or frame rate.

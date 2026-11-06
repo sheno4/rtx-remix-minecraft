@@ -546,7 +546,7 @@ public class RemixRenderer {
         applyPendingWorldResourceChanges();
         MinecraftClient client = MinecraftClient.getInstance();
         ac8CloudRenderer.prepare(client.world,
-                client.getWindow().getFramebufferWidth(), client.getWindow().getFramebufferHeight());
+                client.getWindow().getFramebufferWidth(), client.getWindow().getFramebufferHeight(), remixApi);
         if (RtxRemixMod.isBlockEntitiesEnabled()) {
             preloadEntityAtlasesForCapture();
         }
@@ -1247,8 +1247,7 @@ public class RemixRenderer {
                         worldFov,
                         aspect);
             }
-            ac8CloudRenderer.updateCamera(camera, tickDelta, worldFov, aspect,
-                    rightX, rightY, rightZ, upX, upY, upZ, forwardX, forwardY, forwardZ);
+            ac8CloudRenderer.captureWorld(client.world, tickDelta);
     
             CameraInfoParameterizedEXT worldCameraParams = CameraInfoParameterizedEXT.builder()
                 .position((float) pos.x, (float) pos.y, (float) pos.z)
@@ -1348,6 +1347,7 @@ public class RemixRenderer {
     }
     
     private void submitFrame() {
+        ac8CloudRenderer.stageFrame(remixApi);
         remixApi.submit(null);
     }
     
@@ -1454,13 +1454,6 @@ public class RemixRenderer {
 
     public int getInteropDepthTexture() {
         return interopGlVk.getDepthTexture();
-    }
-
-    /** Composites the separately licensed cloud runtime before Minecraft weather and UI. */
-    public int compositeAc8Clouds(int remixColor) {
-        try (ProfileScope ignored = ProfileScope.begin("Clouds.AC8")) {
-            return ac8CloudRenderer.composite(remixColor, interopGlVk.getDepthTexture(), remixApi);
-        }
     }
 
     public Ac8CloudRenderer getAc8CloudRenderer() {

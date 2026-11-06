@@ -62,6 +62,7 @@ import java.util.List;
 public class SkyRenderer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SkyRenderer.class);
+    private boolean cloudlySkyActive;
 
     /** Equirectangular sky texture resolution. */
     private static final int SKY_W = AtmosphericSkyGenerator.WIDTH;
@@ -225,6 +226,16 @@ public class SkyRenderer {
         }
 
         RemixAPI api = renderer.getRemixApi();
+        if (world.getDimensionEffects().getSkyType() == DimensionEffects.SkyType.NORMAL
+                && renderer.getAc8CloudRenderer().isActive()) {
+            if (!cloudlySkyActive) {
+                destroyCelestialAssets();
+                releaseSkyLights();
+                cloudlySkyActive = true;
+            }
+            return;
+        }
+        cloudlySkyActive = false;
         float[] fixedRadiance = fixedSkyRadiance(world.getDimensionEffects().getSkyType());
         if (fixedRadiance == null) {
             renderAtmosphericSky(api, world, cameraPos, tickDelta);
@@ -1014,6 +1025,7 @@ public class SkyRenderer {
 
     /** Releases world-scoped Remix assets while preserving reusable atmospheric GL state. */
     public void cleanup() {
+        cloudlySkyActive = false;
         destroyCelestialAssets();
         releaseSkyLights();
         currentWorld = null;
