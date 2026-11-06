@@ -38,6 +38,12 @@ game state before Submit. Cloudly borrows Remix's Vulkan device and command
 buffer. Its library owns its allocations and descriptors, and GPU completion
 leases keep them alive until their exact native uses finish.
 
+Native source parameter aliases initialize inside the guarded original-renderer
+entry points. Before a scene is ready, shaders may inspect the host's activation
+flags but must never dereference an original parameter address or descriptor.
+GPU device loss is terminal for interop and retains its original error instead
+of reporting the unfinished frame as a new argument-validation failure.
+
 The PREPARE phase records the original density-dependent directional shadow maps
 before world light tracing. Distant-light samples evaluate those maps directly
 at their world position; the old global rain attenuation is not applied on top.
