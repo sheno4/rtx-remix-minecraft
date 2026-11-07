@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: sheno4/Caustica
-          ref: e98bef33797178f18f45a0cf3f71834c835a16e7
+          ref: 25403ebe4f395e1460f4f04b471c99dbd8be93c9
           path: .cloudly-runtime
           persist-credentials: false
       - name: Read the release version
