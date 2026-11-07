@@ -120,6 +120,12 @@ independently. Game-derived private inputs are outside that license grant.
 
 ## Validation
 
+The physical first-hit depth must be declared in `GbufferRayGenShader`'s
+managed resource list as well as bound at dispatch. All GBuffer variants use
+that list to build their descriptor layouts. Missing the declaration leaves
+the compositor without terrain depth, so it treats terrain as background and
+replaces it with the sky. The `.6` delivery includes this runtime correction.
+
 Local Java/JNI compilation, bridge SPIR-V compilation/validation and package
 integrity are distinct from rendering acceptance. The upstream package task
 also invokes its existing JVM tests, including bitmap-based font metrics;
