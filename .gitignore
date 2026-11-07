@@ -70,3 +70,12 @@ nrc_session_log.txt
 /rtxremix-java/**/*.jar
 /rtxremix-java/**/*.log
 /.build-*.log
+
+# Local component checkouts and private AC8 inputs remain separate from host source.
+/cloudly-runtime/
+/dxvk-remix/
+/private/
+/reference/
+/build-tools/
+/releases/
+/tools/private/

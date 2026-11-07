@@ -16,10 +16,10 @@ pluginManagement {
 
 rootProject.name = 'rtx-remix-renderer'
 
-// The LGPL renderer is an independently replaceable library, outside this
-// Apache-licensed source tree. See docs/AC8_CLOUDS.md for obtaining its source.
+// The LGPL renderer is an independently replaceable, separately versioned
+// checkout ignored by this host repository. See docs/AC8_CLOUDS.md.
 def cloudlyDirectory = providers.gradleProperty('cloudlyRuntimeProject')
-        .orElse('../ac8-cloudly-runtime').get()
+        .orElse('cloudly-runtime').get()
 if (!file(cloudlyDirectory).isDirectory()) {
     throw new GradleException("AC8 Cloudly source is missing: ${cloudlyDirectory}. " +
             'See docs/AC8_CLOUDS.md or set -PcloudlyRuntimeProject=<directory>.')

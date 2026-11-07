@@ -4,6 +4,10 @@ This branch adds independently linked native AC8 clouds for Minecraft 1.21.1.
 See [AC8 clouds](docs/AC8_CLOUDS.md) for the bundled scenes, build instructions,
 license boundary and native rendering validation status.
 
+The complete local workspace keeps its separately versioned `cloudly-runtime/`
+and `dxvk-remix/` checkouts, ignored `private/` inputs and `releases/` below this
+directory. Those local components are not added to this public host repository.
+
 Play Minecraft Java Edition 1.21.1 with real-time path tracing on a GeForce RTX
 GPU, powered by NVIDIA RTX Remix.
 

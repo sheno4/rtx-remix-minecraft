@@ -227,7 +227,7 @@ dependencies {
     modImplementation fabricApiCoordinate
 
     // Link the independently licensed cloud renderer without merging its source.
-    include implementation('dev.comfyfluffy.cloudly:ac8-cloudly-runtime:0.1.0-remix.3')
+    include implementation('dev.comfyfluffy.cloudly:ac8-cloudly-runtime:0.1.0-remix.4')
     include implementation('org.lwjgl:lwjgl-vulkan:3.3.3')
     include implementation('org.lwjgl:lwjgl-vma:3.3.3')
     include runtimeOnly('org.lwjgl:lwjgl-vma:3.3.3:natives-windows')
@@ -552,8 +552,25 @@ def packageJarTask = tasks.register('packageJar', Zip) {
                     'Source-only build artifacts are not complete sky packages. See docs/AC8_CLOUDS.md.')
         }
         def bundle = file(bundlePath).canonicalFile
-        if (bundle.toPath().startsWith(projectDir.canonicalFile.toPath())) {
-            throw new GradleException('Keep game-derived Cloudly resources outside the public source checkout.')
+        def privateRoot = file('private').canonicalFile.toPath()
+        if (!bundle.toPath().startsWith(privateRoot)) {
+            throw new GradleException('Keep game-derived Cloudly resources under this workspace\'s ignored private/ directory.')
+        }
+        def bundleRelativePath = projectDir.canonicalFile.toPath().relativize(bundle.toPath()).toString().replace('\\', '/')
+        def ignored = providers.exec {
+            workingDir projectDir
+            commandLine 'git', 'check-ignore', '--quiet', '--', bundleRelativePath
+            ignoreExitValue = true
+        }.result.get().exitValue
+        if (ignored != 0) {
+            throw new GradleException('The private Cloudly bundle must be ignored by Git before packaging.')
+        }
+        def tracked = providers.exec {
+            workingDir projectDir
+            commandLine 'git', 'ls-files', '--', bundleRelativePath
+        }.standardOutput.asText.get().trim()
+        if (!tracked.isEmpty()) {
+            throw new GradleException('Game-derived Cloudly bundle files must not be tracked by the public host repository.')
         }
         ['manifest.json', 'scenes/mission3/manifest.json', 'scenes/mission11/manifest.json'].each { name ->
             if (!new File(bundle, name).isFile()) throw new GradleException("Missing bundled AC8 scene: ${name}")

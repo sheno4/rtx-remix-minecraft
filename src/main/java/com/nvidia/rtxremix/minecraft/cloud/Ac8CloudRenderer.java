@@ -9,8 +9,10 @@ import com.nvidia.rtxremix.RemixAPI;
 import com.nvidia.rtxremix.minecraft.RtxRemixMod;
 import com.nvidia.rtxremix.minecraft.light.LightManager;
 import dev.comfyfluffy.cloudly.BorrowedCloudlyRuntime;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.DimensionEffects;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +34,8 @@ public final class Ac8CloudRenderer implements AutoCloseable {
     private RemixAPI api;
     private Recorder recorder;
     private BorrowedCloudlyRuntime.ReadyScene lightScene;
+    private BorrowedCloudlyRuntime.PreparationFailure sceneFailure;
+    private BorrowedCloudlyRuntime.PreparationFailure notifiedSceneFailure;
     private boolean enabled = true;
     private int scene;
     private int heightOffset;
@@ -73,6 +77,10 @@ public final class Ac8CloudRenderer implements AutoCloseable {
             }
             lightScene = recorder.runtime.readyScene();
             active = lightScene != null;
+            var preparationFailure = recorder.runtime.preparationFailure();
+            sceneFailure = preparationFailure != null && preparationFailure.sceneIndex() == scene
+                    ? preparationFailure : null;
+            notifySceneFailure(world);
         } catch (RuntimeException | LinkageError failure) {
             fail(failure);
         }
@@ -134,9 +142,24 @@ public final class Ac8CloudRenderer implements AutoCloseable {
     }
 
     public String describe() {
-        String state = !enabled ? "off" : failed ? "failed" : active ? "active" : "waiting";
+        String state = !enabled ? "off" : failed || sceneFailure != null ? "failed" : active ? "active" : "waiting";
+        String kept = sceneFailure == null ? "" : ", keeping "
+                + (lightScene == null ? "ordinary sky" : SCENES[lightScene.sceneIndex()]);
         return state + ", scene " + SCENES[scene] + ", height " + heightOffset
-                + " blocks, distance " + maxDistanceKm + " km";
+                + " blocks, distance " + maxDistanceKm + " km" + kept;
+    }
+
+    private void notifySceneFailure(ClientWorld world) {
+        if (sceneFailure == null || sceneFailure == notifiedSceneFailure) return;
+        var client = MinecraftClient.getInstance();
+        if (client.world != world || client.player == null) return;
+        Text requestedScene = Text.translatable("rtxremix.settings.value.ac8Scene." + sceneFailure.sceneIndex());
+        Text message = lightScene == null
+                ? Text.translatable("rtxremix.clouds.ac8.failed.original", requestedScene)
+                : Text.translatable("rtxremix.clouds.ac8.failed.previous", requestedScene,
+                        Text.translatable("rtxremix.settings.value.ac8Scene." + lightScene.sceneIndex()));
+        client.inGameHud.getChatHud().addMessage(message);
+        notifiedSceneFailure = sceneFailure;
     }
 
     public void setEnabled(boolean value) {
@@ -144,11 +167,14 @@ public final class Ac8CloudRenderer implements AutoCloseable {
         enabled = value;
         failed = false;
         active = false;
+        sceneFailure = null;
+        notifiedSceneFailure = null;
         resetHistory = true;
     }
 
     public void setScene(int value) {
         if (value < 0 || value >= SCENES.length) throw new IllegalArgumentException("Unknown AC8 scene " + value);
+        if (scene != value) sceneFailure = null;
         scene = value;
     }
 
@@ -169,6 +195,8 @@ public final class Ac8CloudRenderer implements AutoCloseable {
         active = false;
         cameraValid = false;
         lightScene = null;
+        sceneFailure = null;
+        notifiedSceneFailure = null;
         resetHistory = true;
         unregister();
     }
@@ -179,6 +207,8 @@ public final class Ac8CloudRenderer implements AutoCloseable {
         failed = true;
         cameraValid = false;
         lightScene = null;
+        sceneFailure = null;
+        notifiedSceneFailure = null;
         LOGGER.error("AC8 clouds stopped; toggle AC8 Clouds off and on to retry", failure);
         unregister();
     }
@@ -189,6 +219,8 @@ public final class Ac8CloudRenderer implements AutoCloseable {
         api.setCloudlyFrameData(null);
         recorder = null;
         api = null;
+        sceneFailure = null;
+        notifiedSceneFailure = null;
     }
 
     @Override public void close() { clearWorld(); }

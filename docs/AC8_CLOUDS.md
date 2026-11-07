@@ -68,11 +68,11 @@ must not be packaged with its stock runtime.
 ## Source and build
 
 Cloudly is LGPL-3.0-or-later and remains an independently replaceable library.
-The Apache host source is not a copy of Caustica's renderer. Obtain the library
-next to this checkout:
+The Apache host source is not a copy of Caustica's renderer. Its separately
+versioned checkout lives at `cloudly-runtime/` under this workspace:
 
 ```powershell
-git clone --branch rtx-remix-cloudly-runtime https://github.com/sheno4/Caustica.git ../ac8-cloudly-runtime
+git clone --branch rtx-remix-cloudly-runtime https://github.com/sheno4/Caustica.git cloudly-runtime
 ```
 
 Use JDK 21. An unmodified library uses its checked-in library-owned bridge
@@ -80,16 +80,26 @@ programs, verified against source and binary hashes. Rebuilding those shaders
 requires Slang 2026.14.1 in `SLANG_SDK` and a Vulkan SDK providing
 `Bin/spirv-val.exe` in `VULKAN_SDK`.
 
+All project components live below this workspace root. `dxvk-remix/` is the
+separate native runtime checkout; `private/adapter/`, `private/bundle/` and
+`private/source/` hold game-derived build inputs. `build-tools/` contains local
+compiler tools, `releases/` contains deliveries and their receipts, and
+`reference/` retains the original reference checkout. These directories are
+ignored by the public host repository. The Cloudly and native repositories
+retain their own Git histories.
+
 ```powershell
-./gradlew.bat package -Parch=win64 -x test -x fabricTest '-PcloudlyBundleInputRoot=<prepared-private-bundle-directory>'
+./tools/rtx.bat sdk local --arch win64 --path dxvk-remix/_output
+./gradlew.bat package -Parch=win64 -x test -x fabricTest -PcloudlyBundleInputRoot=private/bundle
 ```
 
 Use `-PcloudlyRuntimeProject=<directory>` for another library checkout. The
 Gradle composite build links that source directly. Stage a matching custom
 native runtime before packaging; a stock SDK lacks the recording exports. The
-bundle input is outside both public source checkouts. It contains game-derived
-textures, programs and parameter templates; do not commit it or publish it in
-public CI. Source-only builds compile the host and library but do not contain
+bundle input must remain under the ignored `private/` directory. Packaging
+checks that Git ignores the bundle and tracks none of its files. It contains
+game-derived textures, programs and parameter templates; do not commit it or
+publish it in public CI. Source-only builds compile the host and library but do not contain
 the authored scenes. The complete private delivery includes those scenes,
 Remix's Windows runtime, the JNI bridge, Vulkan/VMA dependencies and the VMA
 native library in one Fabric JAR.
@@ -102,7 +112,7 @@ adapter fails this check even if the generic recording extension is present.
 
 Distribution packaging refuses missing private scenes. Public CI has no private
 bundle and cannot generate the complete AC8 delivery. The public source build
-depends on library version `0.1.0-remix.3`.
+depends on library version `0.1.0-remix.4`.
 
 The nested library carries its LGPL/GPL license texts and corresponding source
 archive under `META-INF/cloudly-source/`. It can be rebuilt and replaced

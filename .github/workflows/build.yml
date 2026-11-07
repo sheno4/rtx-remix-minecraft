@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: sheno4/Caustica
-          ref: 6b8c11388950cd28a4a4ecd9585ee6988e07f011
+          ref: e98bef33797178f18f45a0cf3f71834c835a16e7
           path: .cloudly-runtime
           persist-credentials: false
       # Public runners have no game-derived shaders or matching custom runtime.
